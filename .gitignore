@@ -1,0 +1,8 @@
+# Ignore the virtual environment folder
+venv/
+
+# Ignore all PDF files
+*.pdf
+
+# Ignore Python cache files (good practice)
+__pycache__/

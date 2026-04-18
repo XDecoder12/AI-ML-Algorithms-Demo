@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Water Jug Problem Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+        }
+        .jug-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px;
+        }
+        .jug {
+            border: 2px solid #333;
+            width: 120px;
+            height: 200px;
+            margin: 20px;
+            position: relative;
+            background: white;
+        }
+        .water {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: #4da6ff;
+            text-align: center;
+            color: white;
+            font-weight: bold;
+        }
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        .status {
+            margin-top: 15px;
+            font-size: 18px;
+            color: green;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🚰 Water Jug Problem Game</h1>
+<p>Goal: Get exactly <b>2 liters</b> in Jug A</p>
+
+<div class="jug-container">
+    <div>
+        <h3>Jug A (4L)</h3>
+        <div class="jug">
+            <div id="waterA" class="water" style="height:0%">0L</div>
+        </div>
+    </div>
+
+    <div>
+        <h3>Jug B (3L)</h3>
+        <div class="jug">
+            <div id="waterB" class="water" style="height:0%">0L</div>
+        </div>
+    </div>
+</div>
+
+<div>
+    <button onclick="fillA()">Fill A</button>
+    <button onclick="fillB()">Fill B</button>
+    <button onclick="emptyA()">Empty A</button>
+    <button onclick="emptyB()">Empty B</button>
+    <button onclick="pourAtoB()">Pour A → B</button>
+    <button onclick="pourBtoA()">Pour B → A</button>
+</div>
+
+<div class="status" id="status"></div>
+
+<script>
+    let jugA = 0;
+    let jugB = 0;
+    const capA = 4;
+    const capB = 3;
+
+    function updateUI() {
+        document.getElementById("waterA").style.height = (jugA / capA) * 100 + "%";
+        document.getElementById("waterA").innerText = jugA + "L";
+
+        document.getElementById("waterB").style.height = (jugB / capB) * 100 + "%";
+        document.getElementById("waterB").innerText = jugB + "L";
+
+        if (jugA === 2) {
+            document.getElementById("status").innerText =
+                "🎉 Goal Achieved! Jug A has exactly 2 liters.";
+        } else {
+            document.getElementById("status").innerText = "";
+        }
+    }
+
+    function fillA() {
+        jugA = capA;
+        updateUI();
+    }
+
+    function fillB() {
+        jugB = capB;
+        updateUI();
+    }
+
+    function emptyA() {
+        jugA = 0;
+        updateUI();
+    }
+
+    function emptyB() {
+        jugB = 0;
+        updateUI();
+    }
+
+    function pourAtoB() {
+        let transfer = Math.min(jugA, capB - jugB);
+        jugA -= transfer;
+        jugB += transfer;
+        updateUI();
+    }
+
+    function pourBtoA() {
+        let transfer = Math.min(jugB, capA - jugA);
+        jugB -= transfer;
+        jugA += transfer;
+        updateUI();
+    }
+</script>
+
+</body>
+</html>

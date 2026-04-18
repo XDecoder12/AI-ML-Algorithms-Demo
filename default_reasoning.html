@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Default Reasoning Explorer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; padding: 20px; }
+        .controls { display: flex; flex-direction: column; gap: 20px; margin-bottom: 20px; border: 1px solid #ccc; padding: 15px; border-radius: 8px; }
+        .section { display: flex; flex-direction: column; gap: 10px; }
+        .form-group { display: flex; gap: 10px; align-items: center; }
+        input[type="text"] { padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 8px 12px; cursor: pointer; border-radius: 4px; border: 1px solid #aaa; }
+        button.add-btn { background-color: #28a745; color: white; border-color: #28a745; }
+        .list-group { display: flex; flex-direction: column; gap: 5px; margin-top: 10px; }
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; background: #f9f9f9; border-radius: 4px; }
+        .remove-btn { background-color: #dc3545; color: white; border: none; padding: 2px 6px; border-radius: 4px; }
+        #visualization { border: 1px solid #ccc; border-radius: 8px; height: 500px; }
+        .links line { stroke-opacity: 0.6; stroke-width: 1.5px; }
+        .nodes circle { stroke: #fff; stroke-width: 1.5px; }
+        .nodes text { pointer-events: none; font-size: 10px; }
+        .default-link { stroke-dasharray: 5,5; }
+        .strict-link { stroke-dasharray: 0; }
+    </style>
+</head>
+<body>
+
+<h1>AI Default Reasoning Explorer</h1>
+
+<div class="controls">
+    <div class="section">
+        <h3>1. Default Rules</h3>
+        <p>Define relationships that are *typically* true.</p>
+        <div class="form-group">
+            <label>Prerequisite Class (e.g., Bird):</label>
+            <input type="text" id="rulePrereq" placeholder="Class">
+            <label>Normally?</label>
+            <input type="checkbox" id="ruleDefault" checked>
+            <label>Consequent Class (e.g., Flies):</label>
+            <input type="text" id="ruleConsequent" placeholder="Property/Class">
+            <button class="add-btn" onclick="addRule()">Add Rule</button>
+        </div>
+        <div id="ruleList" class="list-group"></div>
+    </div>
+
+    <div class="section">
+        <h3>2. Facts</h3>
+        <p>Add specific assertions about individuals or strict class hierarchy.</p>
+        <div class="form-group">
+            <label>Entity/Subset (e.g., Tweety):</label>
+            <input type="text" id="factSub" placeholder="Individual/SubClass">
+            <span>is a</span>
+            <label>Class/Superset (e.g., Penguin):</label>
+            <input type="text" id="factSuper" placeholder="Class/SuperClass">
+            <button class="add-btn" onclick="addFact()">Add Fact</button>
+        </div>
+        <div id="factList" class="list-group"></div>
+    </div>
+</div>
+
+<div id="visualization"></div>
+
+<script>
+    // Initial Data: The Tweety Scenario
+    let rules = [
+        { type: 'rule', prereq: 'Bird', normally: true, consequent: 'Flies', label: 'Bird(x) ⇢ Flies(x) (default)' },
+        { type: 'strict', sub: 'Penguin', super: 'Bird', label: 'Penguin(x) → Bird(x) (strict)' },
+        { type: 'strict', sub: 'Penguin', super: '!Flies', label: 'Penguin(x) → !Flies(x) (strict)' }
+    ];
+
+    let facts = [
+        { sub: 'Tweety', super: 'Penguin', label: 'is(Tweety, Penguin)' },
+        { sub: 'Robin', super: 'Bird', label: 'is(Robin, Bird)' }
+    ];
+
+    function updateLists() {
+        const ruleList = document.getElementById('ruleList');
+        ruleList.innerHTML = '';
+        rules.forEach((rule, index) => {
+            const item = document.createElement('div');
+            item.className = 'list-item';
+            const typeText = rule.type === 'rule' ? '(Default)' : '(Strict)';
+            item.innerHTML = `<span>${rule.label} ${typeText}</span><button class="remove-btn" onclick="removeRule(${index})">Remove</button>`;
+            ruleList.appendChild(item);
+        });
+
+        const factList = document.getElementById('factList');
+        factList.innerHTML = '';
+        facts.forEach((fact, index) => {
+            const item = document.createElement('div');
+            item.className = 'list-item';
+            item.innerHTML = `<span>${fact.label}</span><button class="remove-btn" onclick="removeFact(${index})">Remove</button>`;
+            factList.appendChild(item);
+        });
+    }
+
+    function addRule() {
+        const prereq = document.getElementById('rulePrereq').value.trim();
+        const normally = document.getElementById('ruleDefault').checked;
+        const consequent = document.getElementById('ruleConsequent').value.trim();
+        if (prereq && consequent) {
+            if (normally) {
+                rules.push({ type: 'rule', prereq, normally, consequent, label: `${prereq}(x) ⇢ ${consequent}(x) (default)` });
+            } else {
+                rules.push({ type: 'strict', sub: prereq, super: consequent, label: `${prereq}(x) → ${consequent}(x) (strict)` });
+            }
+            updateLists();
+            visualize();
+        }
+    }
+
+    function removeRule(index) { rules.splice(index, 1); updateLists(); visualize(); }
+
+    function addFact() {
+        const sub = document.getElementById('factSub').value.trim();
+        const super_ = document.getElementById('factSuper').value.trim();
+        if (sub && super_) {
+            facts.push({ sub, super: super_, label: `is(${sub}, ${super_})` });
+            updateLists();
+            visualize();
+        }
+    }
+
+    function removeFact(index) { facts.splice(index, 1); updateLists(); visualize(); }
+
+    // Core Reasoning and Visualization Logic
+    const svgWidth = document.getElementById('visualization').clientWidth;
+    const svgHeight = document.getElementById('visualization').clientHeight;
+    const svg = d3.select("#visualization").append("svg")
+        .attr("width", svgWidth)
+        .attr("height", svgHeight);
+
+    function visualize() {
+        svg.selectAll("*").remove(); // Clear SVG
+
+        // 1. Create Nodes and Edges based on rules and facts
+        let rawNodesSet = new Set();
+        let rawLinks = [];
+
+        // Build class/property graph
+        rules.forEach(rule => {
+            if (rule.type === 'strict') {
+                rawNodesSet.add(rule.sub);
+                rawNodesSet.add(rule.super);
+                rawLinks.push({ source: rule.sub, target: rule.super, type: 'strict', label: rule.label });
+            } else { // default rule
+                rawNodesSet.add(rule.prereq);
+                rawNodesSet.add(rule.consequent);
+                rawLinks.push({ source: rule.prereq, target: rule.consequent, type: 'default', label: rule.label });
+            }
+        });
+
+        // Add instance facts as nodes and edges
+        facts.forEach(fact => {
+            rawNodesSet.add(fact.sub);
+            rawNodesSet.add(fact.super);
+            rawLinks.push({ source: fact.sub, target: fact.super, type: 'fact', label: fact.label });
+        });
+
+        // Map names to D3 nodes
+        let d3Nodes = Array.from(rawNodesSet).map(name => ({ id: name, derivedProperties: new Set(), isContradiction: false, defaultRetracted: new Map() }));
+        let nodeMap = new Map(d3Nodes.map(node => [node.id, node]));
+
+        let d3Links = rawLinks.map(link => ({
+            source: nodeMap.get(link.source),
+            target: nodeMap.get(link.target),
+            type: link.type,
+            label: link.label
+        }));
+
+        // 2. Simplistic Non-Monotonic Reasoning Engine
+        // (For complex scenarios, this needs proper logic like Reiter's Default Logic, 
+        // but this heuristic works for basic Tweety/Nixon demos)
+
+        // Initialize entities with known facts
+        d3Nodes.forEach(node => { node.derivedProperties.add(node.id); });
+
+        let changed = true;
+        while (changed) {
+            changed = false;
+            // A. Strict propagation (facts + strict rules)
+            d3Links.forEach(link => {
+                if (link.type === 'strict' || link.type === 'fact') {
+                    if (link.source.derivedProperties.has(link.source.id)) {
+                        link.source.derivedProperties.forEach(prop => {
+                            if (!link.target.derivedProperties.has(prop)) {
+                                link.target.derivedProperties.add(prop);
+                                changed = true;
+                            }
+                        });
+                    }
+                }
+            });
+
+            // B. Non-Monotonic Default propagation with retraction
+            // Logic: An individual 'I' is an 'A'. If A(x) -> B(x) is a default, then assume I is also a B,
+            // UNLESS there is a strict proof that I is !B (NOT B).
+
+            d3Nodes.forEach(entityNode => {
+                // If this is an individual (e.g., Tweety), not a class node
+                if (!['Bird', 'Penguin', 'Flies', '!Flies', 'Quaker', 'Republican', 'Pacifist', '!Pacifist'].includes(entityNode.id)) {
+                    
+                    d3Links.forEach(link => {
+                        if (link.type === 'default') {
+                            const prereqClassNode = link.source;
+                            const consequentClassNode = link.target;
+                            
+                            // Check if the entity is an instance of the prerequisite
+                            if (entityNode.derivedProperties.has(prereqClassNode.id)) {
+                                
+                                // Consistency check (Justification β): Is concluding consequent consistent?
+                                const negConsequent = consequentClassNode.id.startsWith('!') ? consequentClassNode.id.substring(1) : '!' + consequentClassNode.id;
+                                
+                                if (entityNode.derivedProperties.has(negConsequent)) {
+                                    // Conflict! Retract/block default conclusion.
+                                    if (!entityNode.defaultRetracted.has(prereqClassNode.id) || entityNode.defaultRetracted.get(prereqClassNode.id) !== consequentClassNode.id) {
+                                        entityNode.defaultRetracted.set(prereqClassNode.id, consequentClassNode.id);
+                                        entityNode.derivedProperties.delete(consequentClassNode.id);
+                                        changed = true;
+                                    }
+                                } else {
+                                    // Valid to conclude by default (γ)
+                                    if (!entityNode.derivedProperties.has(consequentClassNode.id)) {
+                                        entityNode.derivedProperties.add(consequentClassNode.id);
+                                        changed = true;
+                                        // Ensure we remove any retraction mark if it was there before
+                                        entityNode.defaultRetracted.delete(prereqClassNode.id);
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        } // end reasoning loop
+
+
+        // 3. Render Graph with Dynamic Visuals
+        const linkLayer = svg.append("g").attr("class", "links");
+        const nodeLayer = svg.append("g").attr("class", "nodes");
+
+        const simulation = d3.forceSimulation(d3Nodes)
+            .force("link", d3.forceLink(d3Links).distance(120))
+            .force("charge", d3.forceManyBody().strength(-150))
+            .force("center", d3.forceCenter(svgWidth / 2, svgHeight / 2));
+
+        const link = linkLayer.selectAll("line")
+            .data(d3Links)
+            .enter().append("line")
+            .attr("stroke", d => d.type === 'strict' || d.type === 'fact' ? "#000" : "#999")
+            .attr("class", d => d.type === 'default' ? 'default-link' : 'strict-link');
+
+        const node = nodeLayer.selectAll("g")
+            .data(d3Nodes)
+            .enter().append("g");
+
+        // Color based on role/type (individual vs class/property)
+        node.append("circle")
+            .attr("r", 8)
+            .attr("fill", d => {
+                if (['Bird', 'Penguin', 'Quaker', 'Republican'].includes(d.id)) return "#ddd"; // Classes
+                if (['Flies', '!Flies', 'Pacifist', '!Pacifist'].includes(d.id)) return "#f0ad4e"; // Properties
+                return "#5cb85c"; // Individuals
+            });
+
+        node.append("text")
+            .attr("dy", -12)
+            .attr("text-anchor", "middle")
+            .text(d => d.id);
+
+        // Tooltip showing conclusions
+        node.append("title")
+            .text(d => {
+                const props = Array.from(d.derivedProperties).filter(p => p !== d.id).join(', ');
+                const retractions = Array.from(d.defaultRetracted.entries()).map(([k, v]) => `${k}⇢${v} retracted`).join(', ');
+                let text = `ID: ${d.id}\nStrictly known: ${props || 'none'}`;
+                if (retractions) text += `\nConflicts: ${retractions}`;
+                return text;
+            });
+
+        simulation.on("tick", () => {
+            link.attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+            node.attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+
+        // Visually indicate retracted default conclusions
+        // Iterate through individuals and update visualization based on their defaultRetracted map
+        d3Nodes.forEach(entityNode => {
+            if (entityNode.defaultRetracted.size > 0) {
+                entityNode.defaultRetracted.forEach((cons, prereq) => {
+                    // Highlight the edge for the specific individual (This simple visualization doesn't easily show individual retractions on a class-level edge). A tooltip is used for now.
+                    // For a professional presentation, we could highlight conflicting nodes.
+                    // We will visually flag conflicting entities.
+                    const conflictingNode = d3Nodes.find(n => n.id === cons) || d3Nodes.find(n => n.id === cons.substring(1)) || d3Nodes.find(n => n.id === cons.replace('!', ''));
+                    // We'll mark the entity that had its default rule blocked/retracted
+                    svg.selectAll(".nodes circle")
+                        .filter(d => d.id === entityNode.id)
+                        .attr("stroke", "#dc3545") // Red stroke for conflict/retraction
+                        .attr("stroke-width", "3px");
+                });
+            }
+        });
+    }
+
+    // Initialize
+    updateLists();
+    visualize();
+
+</script>
+</body>
+</html>
