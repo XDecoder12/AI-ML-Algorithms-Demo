@@ -18,12 +18,6 @@ def empty_b():
     jug_b = 0
 def pour_a_to_b():
     global jug_b, jug_a
-    # if jug_a + jug_b >= 7:
-    #     jug_b = 3
-    #     jug_a -= 3
-    # elif jug_a + jug_b <= 3:
-    #     jug_b += jug_a
-    #     jug_a -= ()
     amt = min(jug_a, 3-jug_b)
     jug_b += amt 
     jug_a -= amt
